@@ -160,7 +160,7 @@ Cooldown и burst-limit дополнительно возвращают HTTP `42
 
 ## Админка
 
-URL админки отсутствует в публичной навигации. Доступ защищён:
+Ссылка «Админ-панель» на главной странице ведёт на `/admin/login`; пароль вводится только в существующей форме входа и проверяется сервером. Доступ защищён:
 
 - `ADMIN_PASSWORD`, сравниваемым constant-time;
 - лимитом 5 неудачных попыток за 15 минут и блокировкой на 30 минут;
@@ -198,6 +198,18 @@ Rate limit хранится транзакционно в PostgreSQL и пере
 6. `TELEGRAM_REQUIRED=true`, `APP_TIMEZONE=Europe/Moscow`, `TRUSTED_PROXY_COUNT=1` уже заданы Blueprint. Turnstile опционален: при необходимости добавьте обе переменные `NEXT_PUBLIC_TURNSTILE_SITE_KEY` и `TURNSTILE_SECRET_KEY`.
 7. `PORT`, `NODE_ENV` и `RENDER_EXTERNAL_URL` задаёт Render. Не создавайте `PORT` вручную. Next.js `npm start` автоматически слушает `PORT`; `RENDER_EXTERNAL_URL` используется как fallback canonical URL.
 8. После deploy откройте URL сервиса и `/api/health`. Для своего домена можно добавить `NEXT_PUBLIC_SITE_URL=https://ваш-домен` и redeploy.
+
+### Если Web Service уже создан без Blueprint
+
+`render.yaml` не обновляет переменные ранее созданного вручную Web Service. Откройте сервис в Render → **Environment** и добавьте вручную:
+
+- `IP_HASH_SECRET`, `FORM_TOKEN_SECRET`, `ADMIN_SESSION_SECRET` — три разные случайные строки длиной не менее 32 символов;
+- `ADMIN_PASSWORD` — сильный пароль администратора длиной не менее 12 символов;
+- `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID` — значения вашего бота и получателя;
+- `TELEGRAM_REQUIRED` — `true`;
+- `DATABASE_URL` — **Internal Database URL** из Render Postgres.
+
+Не добавляйте реальные значения в репозиторий или `NEXT_PUBLIC_*` переменные. После сохранения Environment выполните **Manual Deploy → Deploy latest commit** (или **Clear build cache & deploy**, если прежняя сборка сохранила ошибку). Ошибка `IP_HASH_SECRET must contain at least 32 characters` означает, что переменная отсутствует либо короче 32 символов.
 
 ### Как узнать Telegram Chat ID
 

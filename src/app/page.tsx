@@ -1,5 +1,6 @@
-import { MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
+import { KeyRound, MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
 import { headers } from "next/headers";
+import Link from "next/link";
 import { connection } from "next/server";
 
 import { MessageForm } from "@/components/message-form";
@@ -35,10 +36,21 @@ export default async function Home() {
           </span>
         </div>
 
-        <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/4.5 px-3 py-2 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl sm:px-4 sm:text-xs">
-          <ShieldCheck className="size-3.5 text-emerald-300" aria-hidden="true" />
-          <span className="hidden sm:inline">Защищённая форма</span>
-          <span className="sm:hidden">Защищено</span>
+        <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/4.5 px-3 py-2 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl sm:flex sm:px-4 sm:text-xs">
+            <ShieldCheck className="size-3.5 text-emerald-300" aria-hidden="true" />
+            Защищённая форма
+          </div>
+          <Link
+            href="/admin/login"
+            className="group inline-flex items-center gap-2 rounded-full border border-violet-300/15 bg-violet-300/[0.07] px-3 py-2 text-[11px] font-medium text-violet-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] backdrop-blur-xl transition hover:border-violet-200/30 hover:bg-violet-300/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 sm:px-4 sm:text-xs"
+          >
+            <KeyRound
+              className="size-3.5 text-violet-300 transition-transform group-hover:-rotate-6"
+              aria-hidden="true"
+            />
+            Админ-панель
+          </Link>
         </div>
       </header>
 
