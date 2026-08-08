@@ -7,6 +7,7 @@ import type { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { acquireTransactionAdvisoryLocks } from "@/lib/advisory-lock";
 import { hmac, safeEqual } from "@/lib/crypto";
 import { db } from "@/lib/db";
 import { getServerConfig } from "@/lib/env";
@@ -110,7 +111,7 @@ export async function assertLoginAllowed(key: string, now = new Date()): Promise
 
 export async function recordFailedLogin(key: string, now = new Date()): Promise<void> {
   await db.$transaction(async (tx: Prisma.TransactionClient) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`login:${key}`}, 0))`;
+    await acquireTransactionAdvisoryLocks(tx, [`login:${key}`]);
     const existing = await tx.loginAttempt.findUnique({ where: { key } });
     const windowExpired =
       !existing || now.getTime() - existing.windowStartedAt.getTime() >= LOGIN_WINDOW_MS;

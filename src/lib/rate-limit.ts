@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Prisma } from "@prisma/client";
 
+import { acquireTransactionAdvisoryLocks } from "@/lib/advisory-lock";
 import { db } from "@/lib/db";
 
 const COOLDOWN_MS = 10_000;
@@ -44,14 +45,10 @@ function bucketDefinitions(identity: Identity) {
 }
 
 async function lockIdentity(tx: Prisma.TransactionClient, identity: Identity): Promise<void> {
-  const keys = [
+  await acquireTransactionAdvisoryLocks(tx, [
     `source:${identity.sourceKey}`,
     ...bucketDefinitions(identity).map(({ key }) => key),
-  ].sort();
-
-  for (const key of keys) {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
-  }
+  ]);
 }
 
 async function assertSourceAllowed(tx: Prisma.TransactionClient, identity: Identity): Promise<void> {
