@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: anonymous-messages
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build:render
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: anonymous-messages-db
+          property: connectionString
+      - key: IP_HASH_SECRET
+        generateValue: true
+      - key: FORM_TOKEN_SECRET
+        generateValue: true
+      - key: ADMIN_SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: TELEGRAM_REQUIRED
+        value: "true"
+      - key: APP_TIMEZONE
+        value: Europe/Moscow
+      - key: TRUSTED_PROXY_COUNT
+        value: "1"
+
+databases:
+  - name: anonymous-messages-db
+    plan: free
+    databaseName: anonymous_messages
+    user: anonymous_messages

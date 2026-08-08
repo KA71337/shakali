@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Message {
+  id                   String   @id @default(cuid())
+  message              String
+  createdAt            DateTime @default(now())
+  ipHash               String
+  deviceHash           String
+  sourceKey            String
+  userAgent            String
+  device               String
+  browser              String
+  os                   String
+  model                String?
+  moderationStatus     String   @default("clean")
+  telegramStatus       String   @default("pending")
+  telegramError        String?
+  notificationAttempts Int      @default(0)
+
+  @@index([createdAt])
+  @@index([ipHash])
+  @@index([deviceHash])
+  @@index([sourceKey])
+  @@index([telegramStatus])
+}
+
+model Source {
+  sourceKey     String    @id
+  ipHash        String
+  deviceHash    String
+  isBlocked     Boolean   @default(false)
+  blockedAt     DateTime?
+  firstSeenAt   DateTime  @default(now())
+  lastSeenAt    DateTime  @default(now())
+  messagesCount Int       @default(0)
+
+  @@index([ipHash])
+  @@index([deviceHash])
+  @@index([isBlocked])
+}
+
+model RateLimitBucket {
+  key             String    @id
+  kind            String
+  lastMessageAt   DateTime?
+  windowStartedAt DateTime  @default(now())
+  requestCount    Int       @default(0)
+  captchaUntil    DateTime?
+  blockedUntil    DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@index([blockedUntil])
+}
+
+model LoginAttempt {
+  key             String    @id
+  windowStartedAt DateTime  @default(now())
+  attemptCount    Int       @default(0)
+  blockedUntil    DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@index([blockedUntil])
+}
