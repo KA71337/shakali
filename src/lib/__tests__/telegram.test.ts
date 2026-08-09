@@ -21,6 +21,7 @@ describe("Telegram formatting", () => {
         browser: "Chrome 151",
         os: "Android 16",
         model: "Pixel 9 Pro <XL>",
+        architecture: "ARM <64-бит>",
         createdAt: new Date("2026-08-08T20:40:00.000Z"),
       },
       "Europe/Moscow",
@@ -30,6 +31,7 @@ describe("Telegram formatting", () => {
     expect(text).toContain("&lt;script&gt;");
     expect(text).not.toContain("<script>");
     expect(text).toContain("Chrome 151");
+    expect(text).toContain("🧩 <b>Архитектура:</b> ARM &lt;64-бит&gt;");
   });
 
   it("sends an image and the complete long message through both Telegram endpoints", async () => {

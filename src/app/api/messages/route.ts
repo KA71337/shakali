@@ -186,7 +186,10 @@ export async function POST(request: NextRequest) {
       deviceHash: identity.deviceHash,
       sourceKey: identity.sourceKey,
       userAgent,
-      ...deviceInfo,
+      device: deviceInfo.device,
+      browser: deviceInfo.browser,
+      os: deviceInfo.os,
+      model: deviceInfo.model,
     });
   } catch (error: unknown) {
     if (error instanceof RequestLimitError) return requestLimitResponse(error);
@@ -204,6 +207,7 @@ export async function POST(request: NextRequest) {
       browser: storedMessage.browser,
       os: storedMessage.os,
       model: storedMessage.model,
+      architecture: deviceInfo.architecture,
       createdAt: storedMessage.createdAt,
     });
     await db.message.update({

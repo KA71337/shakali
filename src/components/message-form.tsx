@@ -7,7 +7,7 @@ import {
   Clock3,
   LoaderCircle,
   ImagePlus,
-  LockKeyhole,
+
   Send,
   X,
 } from "lucide-react";
@@ -498,7 +498,7 @@ export function MessageForm({ nonce }: MessageFormProps) {
     messageLength > MAX_MESSAGE_LENGTH ||
     (captchaRequired && (!captchaSiteKey || !captchaToken));
 
-  let buttonLabel = "Отправить анонимно →";
+  let buttonLabel = "Отправить";
 
   if (isSubmitting) {
     buttonLabel = "Отправка…";
@@ -513,7 +513,8 @@ export function MessageForm({ nonce }: MessageFormProps) {
   return (
     <motion.form
       onSubmit={handleSubmit}
-      className="glass-card mx-auto w-full max-w-2xl rounded-[1.75rem] p-4 text-left sm:rounded-4xl sm:p-6 md:p-7"
+      id="message-composer"
+      className="message-composer"
       initial={reduceMotion ? false : { y: 12, scale: 0.995 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: reduceMotion ? 0 : 0.55, ease: [0.22, 1, 0.36, 1] }}
@@ -550,13 +551,13 @@ export function MessageForm({ nonce }: MessageFormProps) {
             value={message}
             onChange={handleMessageChange}
             placeholder="Введите сообщение..."
-            rows={7}
+            rows={1}
             autoComplete="off"
             spellCheck
             disabled={isSubmitting}
             aria-describedby="message-hint message-counter form-status"
             aria-invalid={notice?.kind === "error"}
-            className="message-textarea min-h-40 w-full resize-y rounded-xl bg-transparent px-3 py-3 text-[15px] leading-6 text-slate-100 caret-violet-300 disabled:cursor-wait disabled:opacity-60 sm:min-h-44 sm:rounded-2xl sm:px-4 sm:py-4 sm:text-base sm:leading-7"
+            className="message-textarea min-h-12 max-h-36 w-full resize-none rounded-xl bg-transparent px-3 py-3 text-base leading-6 text-slate-100 caret-violet-300 disabled:cursor-wait disabled:opacity-60"
           />
 
           <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-1 sm:px-4">
@@ -699,15 +700,7 @@ export function MessageForm({ nonce }: MessageFormProps) {
         </motion.button>
 
         <div className="mt-4 flex items-start gap-2.5 px-1 text-[10px] leading-[1.55] text-slate-500 sm:mt-5 sm:text-[11px]">
-          <LockKeyhole
-            className="mt-0.5 size-3.5 shrink-0 text-slate-500"
-            aria-hidden="true"
-          />
-          <p>
-            Сообщения отправляются без регистрации. Для защиты сервиса от спама
-            используются технические данные. Не указывайте пароли и другую
-            конфиденциальную информацию.
-          </p>
+          <p>Без регистрации. Не указывайте пароли и конфиденциальные данные.</p>
         </div>
       </div>
     </motion.form>

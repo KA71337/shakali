@@ -11,6 +11,7 @@ export type TelegramNotification = {
   browser: string;
   os: string;
   model: string | null;
+  architecture?: string | null;
   createdAt: Date;
 };
 
@@ -34,7 +35,10 @@ function formatTime(date: Date, timeZone: string): string {
 }
 
 export function formatTelegramMessage(input: TelegramNotification, timeZone: string): string {
-  const model = input.model ?? "Не раскрыта браузером";
+  const model = input.model ?? "Браузер не раскрывает";
+  const architecture = input.architecture
+    ? [`🧩 <b>Архитектура:</b> ${escapeHtml(input.architecture)}`]
+    : [];
 
   return [
     "🔔 <b>Новое анонимное сообщение</b>",
@@ -46,6 +50,7 @@ export function formatTelegramMessage(input: TelegramNotification, timeZone: str
     `📲 <b>Модель:</b> ${escapeHtml(model)}`,
     `🌐 <b>Браузер:</b> ${escapeHtml(input.browser)}`,
     `💻 <b>ОС:</b> ${escapeHtml(input.os)}`,
+    ...architecture,
     `🕐 <b>Время:</b> ${escapeHtml(formatTime(input.createdAt, timeZone))}`,
     `🌍 <b>IP:</b> <code>${escapeHtml(input.ip)}</code>`,
   ].join("\n");

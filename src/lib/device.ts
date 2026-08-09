@@ -3,11 +3,21 @@ export type DeviceInfo = {
   browser: string;
   os: string;
   model: string | null;
+  architecture: string | null;
 };
 
 function cleanHint(value: string | null, maxLength = 100): string {
+  const sanitized = (value ?? "")
+    .replace(/[\r\n\u0000-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, maxLength);
+  return sanitized.startsWith('"') && sanitized.endsWith('"')
+    ? sanitized.slice(1, -1).replaceAll('\\"', '"').trim()
+    : sanitized;
+}
+
+function cleanListHint(value: string | null, maxLength = 1000): string {
   return (value ?? "")
-    .replace(/^"|"$/g, "")
     .replace(/[\r\n\u0000-\u001F\u007F]/g, "")
     .trim()
     .slice(0, maxLength);
@@ -20,9 +30,9 @@ function getBrandVersion(brands: string, brand: string): string | null {
 }
 
 function parseBrowser(userAgent: string, headers: Headers): string {
-  const brands = cleanHint(
+  const brands = cleanListHint(
     headers.get("sec-ch-ua-full-version-list") ?? headers.get("sec-ch-ua"),
-    500,
+    1000,
   );
   const brandCandidates: Array<[string, string]> = [
     ["Microsoft Edge", "Edge"],
@@ -34,7 +44,7 @@ function parseBrowser(userAgent: string, headers: Headers): string {
   for (const [brand, label] of brandCandidates) {
     const version = getBrandVersion(brands, brand);
     if (version) {
-      return `${label} ${version.split(".")[0]}`;
+      return `${label} ${version}`;
     }
   }
 
@@ -64,7 +74,11 @@ function parseOs(userAgent: string, headers: Headers): string {
 
   if (/Windows/i.test(platform) || /Windows NT/i.test(userAgent)) {
     const major = Number.parseInt(platformVersion.split(".")[0] ?? "", 10);
-    return Number.isFinite(major) && major >= 13 ? "Windows 11" : "Windows 10";
+    if (Number.isFinite(major)) return major >= 13 ? "Windows 11" : "Windows 10";
+    const ntVersion = userAgent.match(/Windows NT\s([\d.]+)/i)?.[1];
+    return ntVersion === "10.0"
+      ? "Windows 10 или 11"
+      : `Windows${ntVersion ? ` NT ${ntVersion}` : ""}`;
   }
 
   const androidVersion = userAgent.match(/Android\s([\d.]+)/i)?.[1];
@@ -82,11 +96,30 @@ function parseOs(userAgent: string, headers: Headers): string {
     return `macOS ${platformVersion || macVersion?.replaceAll("_", ".") || ""}`.trim();
   }
 
-  if (/Linux/i.test(platform) || /Linux/i.test(userAgent)) {
-    return "Linux";
-  }
+  if (/Chrome OS/i.test(platform) || /CrOS/i.test(userAgent)) return "ChromeOS";
+  if (/Linux/i.test(platform) || /Linux/i.test(userAgent)) return "Linux";
 
   return platform || "Не определена";
+}
+
+function parseArchitecture(userAgent: string, headers: Headers): string | null {
+  const hintedArchitecture = cleanHint(headers.get("sec-ch-ua-arch")).toLowerCase();
+  const hintedBitness = cleanHint(headers.get("sec-ch-ua-bitness"));
+  let architecture: string | null = null;
+
+  if (/^(x86|x64|amd64)$/.test(hintedArchitecture)) architecture = "x86";
+  else if (/^(arm|arm64|aarch64)$/.test(hintedArchitecture)) architecture = "ARM";
+  else if (hintedArchitecture) architecture = hintedArchitecture;
+  else if (/arm64|aarch64/i.test(userAgent)) architecture = "ARM";
+  else if (/x86_64|x64|Win64|WOW64|amd64/i.test(userAgent)) architecture = "x86";
+
+  if (!architecture) return null;
+  const bitness = /^\d{2}$/.test(hintedBitness)
+    ? hintedBitness
+    : /arm64|aarch64|x86_64|x64|Win64/i.test(userAgent)
+      ? "64"
+      : "";
+  return bitness ? `${architecture} (${bitness}-бит)` : architecture;
 }
 
 function parseAndroidModel(userAgent: string): string | null {
@@ -97,7 +130,7 @@ function parseAndroidModel(userAgent: string): string | null {
     .replace(/;\s*wv$/i, "")
     .trim();
 
-  if (!candidate || /^(Mobile|Tablet|wv)$/i.test(candidate)) {
+  if (!candidate || /^(K|Mobile|Tablet|Android|wv)$/i.test(candidate)) {
     return null;
   }
 
@@ -113,17 +146,25 @@ export function detectDevice(headers: Headers): DeviceInfo {
 
   let device = "Не определено";
   if (/iPad/i.test(userAgent)) {
-    device = "Apple iPad";
+    device = "Планшет Apple (iPad)";
   } else if (/iPhone|iPod/i.test(userAgent)) {
-    device = "Apple iPhone";
+    device = "Смартфон Apple (iPhone)";
   } else if (os.startsWith("Android")) {
-    device = mobileHint === "?0" || /Tablet/i.test(userAgent) ? "Android-планшет" : "Android-смартфон";
+    if (/Android TV|SmartTV|GoogleTV|\bTV\b/i.test(userAgent)) {
+      device = "Android TV";
+    } else if (mobileHint === "?1" || /\bMobile\b/i.test(userAgent)) {
+      device = "Android-смартфон";
+    } else {
+      device = "Android-планшет или другое устройство";
+    }
   } else if (os.startsWith("Windows")) {
-    device = "Windows PC";
+    device = "Компьютер Windows";
   } else if (os.startsWith("macOS")) {
-    device = "Mac";
+    device = "Компьютер Mac";
+  } else if (os === "ChromeOS") {
+    device = "Chromebook";
   } else if (os === "Linux") {
-    device = "Linux PC";
+    device = "Компьютер Linux";
   }
 
   return {
@@ -131,5 +172,6 @@ export function detectDevice(headers: Headers): DeviceInfo {
     browser: parseBrowser(userAgent, headers),
     os,
     model,
+    architecture: parseArchitecture(userAgent, headers),
   };
 }

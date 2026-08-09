@@ -70,26 +70,21 @@ export async function getAdminDashboardData() {
     }),
   ]);
 
+  const sources = await db.source.findMany({
+    where: { sourceKey: { in: [...new Set(messages.map((message) => message.sourceKey))] } },
+    select: { sourceKey: true, isBlocked: true },
+  });
+  const blockedBySourceKey = new Map(
+    sources.map((source) => [source.sourceKey, source.isBlocked]),
+  );
+
   return {
     stats: { total, today: todayCount, blocked, pendingTelegram },
-    messages: messages.map((message: {
-      id: string;
-      message: string;
-      createdAt: Date;
-      ipHash: string;
-      userAgent: string;
-      device: string;
-      browser: string;
-      os: string;
-      model: string | null;
-      moderationStatus: string;
-      telegramStatus: string;
-      sourceKey: string;
-    }) => ({
+    messages: messages.map((message) => ({
       ...message,
       createdAt: message.createdAt.toISOString(),
       ipHash: message.ipHash.slice(0, 16),
-      sourceKey: message.sourceKey,
+      isBlocked: blockedBySourceKey.get(message.sourceKey) ?? false,
     })),
   };
 }

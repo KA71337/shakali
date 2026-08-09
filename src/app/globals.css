@@ -290,6 +290,180 @@ button {
   }
 }
 
+/* Unified Telegram-like chat */
+.chat-page {
+  display: grid;
+  min-height: 100svh;
+  padding: 24px;
+  place-items: center;
+}
+
+.telegram-chat {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(100%, 760px);
+  height: min(920px, calc(100dvh - 48px));
+  min-height: 620px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 28px;
+  background: #101522;
+  box-shadow: 0 32px 90px rgb(0 0 0 / 0.48);
+}
+
+.chat-header {
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(18 24 38 / 0.94);
+  backdrop-filter: blur(18px);
+}
+
+.chat-feed {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(rgb(7 13 23 / 0.88), rgb(7 13 23 / 0.88)),
+    radial-gradient(circle at 20% 20%, rgb(69 110 155 / 0.22), transparent 20rem);
+}
+
+.chat-messages {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 18px 24px;
+  scrollbar-color: rgb(148 163 184 / 0.28) transparent;
+  scrollbar-width: thin;
+}
+
+.chat-refresh {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 999px;
+  color: #cbd5e1;
+  background: rgb(15 23 42 / 0.76);
+  place-items: center;
+  backdrop-filter: blur(12px);
+}
+
+.message-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 42px 0 0;
+  list-style: none;
+}
+
+.message-bubble {
+  position: relative;
+  width: fit-content;
+  max-width: min(82%, 560px);
+  padding: 8px 10px 7px;
+  border: 1px solid rgb(255 255 255 / 0.06);
+  border-radius: 15px 15px 15px 5px;
+  background: #202a3a;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+}
+
+.message-author {
+  margin: 0 0 3px;
+  color: #a99cff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.message-body {
+  margin: 0;
+  padding-right: 58px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #f1f5f9;
+  font-size: 14px;
+  line-height: 1.42;
+}
+
+.message-time {
+  display: block;
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 10px;
+  line-height: 1;
+  text-align: right;
+}
+
+.message-image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: min(52dvh, 440px);
+  margin: 4px 0 6px;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+.message-composer {
+  z-index: 3;
+  max-height: min(62dvh, 590px);
+  overflow-y: auto;
+  padding: 12px 14px max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(18 24 38 / 0.98);
+  text-align: left;
+  scrollbar-width: thin;
+}
+
+.message-composer .send-button {
+  min-height: 48px;
+  margin-top: 10px;
+  padding-block: 10px;
+}
+
+@media (max-width: 639px) {
+  .chat-page {
+    height: 100dvh;
+    min-height: 100svh;
+    padding: 0;
+  }
+
+  .telegram-chat {
+    width: 100%;
+    height: 100dvh;
+    min-height: 100svh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .chat-header {
+    min-height: calc(60px + env(safe-area-inset-top));
+    padding-top: max(8px, env(safe-area-inset-top));
+  }
+
+  .chat-messages {
+    padding-inline: 10px;
+  }
+
+  .message-bubble {
+    max-width: 88%;
+  }
+
+  .message-composer {
+    padding-inline: 10px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

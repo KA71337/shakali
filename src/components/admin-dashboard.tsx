@@ -18,6 +18,7 @@ import {
   MessageSquareText,
   Monitor,
   RefreshCw,
+  RotateCcw,
   Send,
   ShieldCheck,
   Smartphone,
@@ -54,6 +55,7 @@ export type AdminDashboardData = {
     moderationStatus: string;
     telegramStatus: string;
     sourceKey: string;
+    isBlocked: boolean;
   }>;
 };
 
@@ -67,7 +69,7 @@ type Confirmation =
       id: string;
     }
   | {
-      kind: "block";
+      kind: "block" | "unblock";
       sourceKey: string;
     };
 
@@ -238,6 +240,7 @@ function ConfirmationDialog({
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const isDelete = confirmation.kind === "delete";
+  const isUnblock = confirmation.kind === "unblock";
 
   useEffect(() => {
     const previouslyFocused =
@@ -288,7 +291,9 @@ function ConfirmationDialog({
 
   const detail = isDelete
     ? "Сообщение будет удалено без возможности восстановления."
-    : "Новые сообщения от этого источника будут автоматически блокироваться.";
+    : isUnblock
+      ? "Источник и связанные с ним IP/device будут разблокированы. Ранее скрытые сообщения останутся скрытыми."
+      : "Новые сообщения от этого источника и связанных IP/device будут автоматически блокироваться.";
 
   const identifier = isDelete
     ? `ID: ${confirmation.id}`
@@ -337,6 +342,8 @@ function ConfirmationDialog({
         >
           {isDelete ? (
             <Trash2 aria-hidden="true" className="h-5 w-5" />
+          ) : isUnblock ? (
+            <RotateCcw aria-hidden="true" className="h-5 w-5" />
           ) : (
             <Ban aria-hidden="true" className="h-5 w-5" />
           )}
@@ -346,7 +353,11 @@ function ConfirmationDialog({
           id="admin-confirmation-title"
           className="pr-8 text-xl font-semibold tracking-tight text-white"
         >
-          {isDelete ? "Удалить сообщение?" : "Заблокировать источник?"}
+          {isDelete
+            ? "Удалить сообщение?"
+            : isUnblock
+              ? "Разблокировать источник?"
+              : "Заблокировать источник?"}
         </h2>
         <p
           id="admin-confirmation-description"
@@ -382,10 +393,12 @@ function ConfirmationDialog({
               <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
             ) : isDelete ? (
               <Trash2 aria-hidden="true" className="h-4 w-4" />
+            ) : isUnblock ? (
+              <RotateCcw aria-hidden="true" className="h-4 w-4" />
             ) : (
               <Ban aria-hidden="true" className="h-4 w-4" />
             )}
-            {isDelete ? "Удалить" : "Заблокировать"}
+            {isDelete ? "Удалить" : isUnblock ? "Разблокировать" : "Заблокировать"}
           </button>
         </div>
       </motion.div>
@@ -451,7 +464,7 @@ export function AdminDashboard({ data }: AdminDashboardProps) {
     const currentActionKey =
       currentConfirmation.kind === "delete"
         ? `delete:${currentConfirmation.id}`
-        : `block:${currentConfirmation.sourceKey}`;
+        : `${currentConfirmation.kind}:${currentConfirmation.sourceKey}`;
 
     setActionKey(currentActionKey);
     setFeedback(null);
@@ -469,8 +482,9 @@ export function AdminDashboard({ data }: AdminDashboardProps) {
         );
         setFeedback({ kind: "success", message: "Сообщение удалено." });
       } else {
+        const isUnblock = currentConfirmation.kind === "unblock";
         const response = await fetch("/api/admin/sources/block", {
-          method: "POST",
+          method: isUnblock ? "DELETE" : "POST",
           headers: {
             "Content-Type": "application/json",
           },
@@ -479,11 +493,15 @@ export function AdminDashboard({ data }: AdminDashboardProps) {
 
         await ensureSuccessfulResponse(
           response,
-          "Не удалось заблокировать источник.",
+          isUnblock
+            ? "Не удалось разблокировать источник."
+            : "Не удалось заблокировать источник.",
         );
         setFeedback({
           kind: "success",
-          message: "Источник добавлен в список блокировки.",
+          message: isUnblock
+            ? "Источник и связанные ограничения разблокированы."
+            : "Источник добавлен в список блокировки.",
         });
       }
 
@@ -739,9 +757,10 @@ export function AdminDashboard({ data }: AdminDashboardProps) {
               <div className="space-y-3">
                 {data.messages.map((message, index) => {
                   const deleteActionKey = `delete:${message.id}`;
-                  const blockActionKey = `block:${message.sourceKey}`;
+                  const sourceActionKind = message.isBlocked ? "unblock" : "block";
+                  const sourceActionKey = `${sourceActionKind}:${message.sourceKey}`;
                   const isMessageBusy =
-                    actionKey === deleteActionKey || actionKey === blockActionKey;
+                    actionKey === deleteActionKey || actionKey === sourceActionKey;
 
                   return (
                     <motion.article
@@ -848,22 +867,30 @@ export function AdminDashboard({ data }: AdminDashboardProps) {
                             type="button"
                             onClick={() =>
                               setConfirmation({
-                                kind: "block",
+                                kind: sourceActionKind,
                                 sourceKey: message.sourceKey,
                               })
                             }
                             disabled={isMessageBusy}
-                            className="flex h-9 items-center justify-center gap-2 rounded-xl border border-amber-400/10 bg-amber-400/5 px-3 text-xs font-medium text-amber-200/80 transition hover:border-amber-400/20 hover:bg-amber-400/9 hover:text-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 disabled:cursor-wait disabled:opacity-45"
+                            className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-wait disabled:opacity-45 sm:min-h-9 ${
+                              message.isBlocked
+                                ? "border-emerald-400/10 bg-emerald-400/5 text-emerald-200/80 hover:border-emerald-400/20 hover:bg-emerald-400/9 hover:text-emerald-200 focus-visible:ring-emerald-400"
+                                : "border-amber-400/10 bg-amber-400/5 text-amber-200/80 hover:border-amber-400/20 hover:bg-amber-400/9 hover:text-amber-200 focus-visible:ring-amber-400"
+                            }`}
                           >
-                            {actionKey === blockActionKey ? (
+                            {actionKey === sourceActionKey ? (
                               <LoaderCircle
                                 aria-hidden="true"
                                 className="h-3.5 w-3.5 animate-spin"
                               />
+                            ) : message.isBlocked ? (
+                              <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />
                             ) : (
                               <Ban aria-hidden="true" className="h-3.5 w-3.5" />
                             )}
-                            Заблокировать источник
+                            {message.isBlocked
+                              ? "Разблокировать источник"
+                              : "Заблокировать источник"}
                           </button>
                           <button
                             type="button"
