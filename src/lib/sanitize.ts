@@ -10,7 +10,7 @@ function countSymbols(value: string): number {
   return Array.from(value).length;
 }
 
-export function sanitizeMessage(input: unknown): MessageValidationResult {
+export function sanitizeMessage(input: unknown, allowEmpty = false): MessageValidationResult {
   if (typeof input !== "string") {
     return { ok: false, code: "EMPTY_MESSAGE", message: "Введите сообщение." };
   }
@@ -39,7 +39,9 @@ export function sanitizeMessage(input: unknown): MessageValidationResult {
     .trim();
 
   if (!cleaned) {
-    return { ok: false, code: "EMPTY_MESSAGE", message: "Введите сообщение." };
+    return allowEmpty
+      ? { ok: true, message: "" }
+      : { ok: false, code: "EMPTY_MESSAGE", message: "Введите сообщение или добавьте изображение." };
   }
 
   if (countSymbols(cleaned) > MAX_MESSAGE_LENGTH) {

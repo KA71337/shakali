@@ -32,6 +32,88 @@ describe("Telegram formatting", () => {
     expect(text).toContain("Chrome 151");
   });
 
+  it("sends an image and the complete long message through both Telegram endpoints", async () => {
+    process.env.TELEGRAM_BOT_TOKEN = "123456789:test-token-value";
+    process.env.TELEGRAM_CHAT_ID = "987654321";
+    const fetchMock = vi.fn<
+      (input: string | URL | Request, init?: RequestInit) => Promise<Response>
+    >(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const longMessage = "Длинное сообщение ".repeat(60);
+
+    const status = await sendTelegramNotification({
+      message: longMessage,
+      imageData: Uint8Array.from([0xff, 0xd8, 0xff]),
+      imageMime: "image/jpeg",
+      ip: "203.0.113.10",
+      device: "Смартфон",
+      browser: "Chrome",
+      os: "Android",
+      model: null,
+      createdAt: new Date("2026-08-08T20:40:00.000Z"),
+    });
+
+    expect(status).toBe("delivered");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const [photoUrl, photoOptions] = fetchMock.mock.calls[0];
+    expect(photoUrl).toContain("/sendPhoto");
+    expect(photoOptions?.body).toBeInstanceOf(FormData);
+    const photoBody = photoOptions?.body as FormData;
+    expect(photoBody.get("chat_id")).toBe("987654321");
+    expect(photoBody.get("caption")).toBeNull();
+    expect(photoBody.get("photo")).toBeInstanceOf(File);
+
+    const [messageUrl, messageOptions] = fetchMock.mock.calls[1];
+    expect(messageUrl).toContain("/sendMessage");
+    const messageBody = JSON.parse(String(messageOptions?.body)) as { text: string };
+    expect(messageBody.text.length).toBeGreaterThan(1_024);
+    expect(messageBody.text).toContain(longMessage);
+    expect(messageBody.text).toContain("203.0.113.10");
+  });
+
+  it("fails image delivery unless both Telegram calls succeed", async () => {
+    process.env.TELEGRAM_BOT_TOKEN = "123456789:test-token-value";
+    process.env.TELEGRAM_CHAT_ID = "987654321";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: false, description: "message rejected" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      sendTelegramNotification({
+        message: "Фото",
+        imageData: Uint8Array.from([0xff, 0xd8, 0xff]),
+        imageMime: "image/jpeg",
+        ip: "203.0.113.10",
+        device: "Смартфон",
+        browser: "Chrome",
+        os: "Android",
+        model: null,
+        createdAt: new Date("2026-08-08T20:40:00.000Z"),
+      }),
+    ).rejects.toThrow("message rejected");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("posts a configured notification to Telegram Bot API", async () => {
     process.env.TELEGRAM_BOT_TOKEN = "123456789:test-token-value";
     process.env.TELEGRAM_CHAT_ID = "987654321";

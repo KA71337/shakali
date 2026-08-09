@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 import { GET as getFormToken } from "@/app/api/form-token/route";
-import { POST as postMessage } from "@/app/api/messages/route";
+import { GET as getMessages, POST as postMessage } from "@/app/api/messages/route";
 import { hashIdentifier } from "@/lib/crypto";
 import { db } from "@/lib/db";
 import { assessRequest, RequestLimitError } from "@/lib/rate-limit";
@@ -23,6 +23,53 @@ afterAll(async () => {
     ]);
   }
   await db.$disconnect();
+});
+
+describe("GET /api/messages", () => {
+  it("returns only recent clean messages with public fields", async () => {
+    const uniqueKey = `public-feed-test-${Date.now()}`;
+    const baseData = {
+      ipHash: uniqueKey,
+      deviceHash: uniqueKey,
+      sourceKey: uniqueKey,
+      userAgent: "secret-agent",
+      device: "secret-device",
+      browser: "secret-browser",
+      os: "secret-os",
+      model: "secret-model",
+    };
+
+    const [cleanMessage, hiddenMessage] = await db.$transaction([
+      db.message.create({
+        data: { ...baseData, message: "Публичное сообщение", moderationStatus: "clean" },
+      }),
+      db.message.create({
+        data: { ...baseData, message: "Скрытое сообщение", moderationStatus: "blocked" },
+      }),
+    ]);
+
+    try {
+      const response = await getMessages();
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toContain("no-store");
+
+      const payload = (await response.json()) as {
+        messages: Array<Record<string, unknown>>;
+      };
+      const clean = payload.messages.find((message) => message.id === cleanMessage.id);
+
+      expect(clean).toBeDefined();
+      expect(Object.keys(clean!).sort()).toEqual(["createdAt", "id", "imageUrl", "message"]);
+      expect(clean?.imageUrl).toBeNull();
+      expect(clean?.message).toBe("Публичное сообщение");
+      expect(payload.messages.some((message) => message.id === hiddenMessage.id)).toBe(false);
+      expect(payload.messages.length).toBeLessThanOrEqual(50);
+      expect(JSON.stringify(payload)).not.toContain("secret-agent");
+      expect(JSON.stringify(payload)).not.toContain("secret-device");
+    } finally {
+      await db.message.deleteMany({ where: { sourceKey: uniqueKey } });
+    }
+  });
 });
 
 describe("POST /api/messages", () => {

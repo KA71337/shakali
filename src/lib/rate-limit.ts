@@ -30,6 +30,9 @@ type Identity = {
 
 type MessageRecord = Identity & {
   message: string;
+  imageData: Buffer | null;
+  imageMime: string | null;
+  imageSize: number | null;
   userAgent: string;
   device: string;
   browser: string;
@@ -203,6 +206,9 @@ export async function reserveAndSaveMessage(
     return tx.message.create({
       data: {
         message: input.message,
+        imageData: input.imageData ? new Uint8Array(input.imageData) : null,
+        imageMime: input.imageMime,
+        imageSize: input.imageSize,
         ipHash: input.ipHash,
         deviceHash: input.deviceHash,
         sourceKey: input.sourceKey,

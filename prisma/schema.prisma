@@ -10,6 +10,9 @@ datasource db {
 model Message {
   id                   String   @id @default(cuid())
   message              String
+  imageData            Bytes?
+  imageMime            String?
+  imageSize            Int?
   createdAt            DateTime @default(now())
   ipHash               String
   deviceHash           String

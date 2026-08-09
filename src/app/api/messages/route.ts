@@ -7,6 +7,7 @@ import { detectDevice } from "@/lib/device";
 import { getServerConfig } from "@/lib/env";
 import { verifyFormToken } from "@/lib/form-token";
 import { getRequestIdentity } from "@/lib/identity";
+import { readLimitedFormData, validateImageFile, type ValidatedImage } from "@/lib/image-upload";
 import {
   assessRequest,
   MESSAGE_COOLDOWN_SECONDS,
@@ -19,6 +20,38 @@ import { sendTelegramNotification, TelegramDeliveryError } from "@/lib/telegram"
 import { getTurnstileSiteKey, verifyTurnstile } from "@/lib/turnstile";
 
 export const runtime = "nodejs";
+
+const PUBLIC_MESSAGE_LIMIT = 50;
+
+export async function GET() {
+  try {
+    const messages = await db.message.findMany({
+      where: { moderationStatus: "clean" },
+      orderBy: { createdAt: "desc" },
+      take: PUBLIC_MESSAGE_LIMIT,
+      select: {
+        id: true,
+        message: true,
+        createdAt: true,
+        imageMime: true,
+      },
+    });
+
+    return json({
+      messages: messages.map(({ imageMime, ...message }) => ({
+        ...message,
+        imageUrl: imageMime ? `/api/messages/${message.id}/image` : null,
+      })),
+    });
+  } catch (error: unknown) {
+    console.error("Public message feed failed", error);
+    return errorJson(
+      "SERVICE_UNAVAILABLE",
+      "Не удалось загрузить сообщения. Попробуйте ещё раз.",
+      503,
+    );
+  }
+}
 
 const requestSchema = z
   .object({
@@ -51,17 +84,37 @@ export async function POST(request: NextRequest) {
   }
 
   let rawBody: unknown;
+  let image: ValidatedImage | null = null;
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
   try {
-    rawBody = await readLimitedJson(request);
+    if (contentType.startsWith("multipart/form-data")) {
+      const formData = await readLimitedFormData(request);
+      const imageEntry = formData.get("image");
+      if (imageEntry instanceof File && imageEntry.size > 0) {
+        image = await validateImageFile(imageEntry);
+      } else if (imageEntry !== null && !(imageEntry instanceof File)) {
+        throw new Error("INVALID_IMAGE_TYPE");
+      }
+      rawBody = {
+        message: formData.get("message"),
+        formToken: formData.get("formToken"),
+        website: formData.get("website") ?? "",
+        turnstileToken: formData.get("turnstileToken") || null,
+      };
+    } else if (contentType.startsWith("application/json")) {
+      rawBody = await readLimitedJson(request);
+    } else {
+      throw new Error("INVALID_CONTENT_TYPE");
+    }
   } catch (error: unknown) {
-    const tooLarge = error instanceof Error && error.message === "BODY_TOO_LARGE";
-    return errorJson(
-      tooLarge ? "BODY_TOO_LARGE" : "INVALID_REQUEST",
-      tooLarge
-        ? "Сообщение слишком длинное. Максимум — 1000 символов."
-        : "Некорректный запрос.",
-      tooLarge ? 413 : 400,
-    );
+    const code = error instanceof Error ? error.message : "INVALID_REQUEST";
+    if (code === "BODY_TOO_LARGE" || code === "IMAGE_TOO_LARGE") {
+      return errorJson("BODY_TOO_LARGE", "Изображение должно быть не больше 2 МБ.", 413);
+    }
+    if (code === "INVALID_IMAGE_TYPE" || code === "IMAGE_EMPTY") {
+      return errorJson("INVALID_IMAGE_TYPE", "Разрешены только JPEG, PNG, WebP и GIF.", 400);
+    }
+    return errorJson("INVALID_REQUEST", "Некорректный запрос.", 400);
   }
 
   const parsed = requestSchema.safeParse(rawBody);
@@ -82,7 +135,7 @@ export async function POST(request: NextRequest) {
     return errorJson("INVALID_FORM_TOKEN", message, tokenCheck.reason === "too_fast" ? 429 : 403);
   }
 
-  const validatedMessage = sanitizeMessage(parsed.data.message);
+  const validatedMessage = sanitizeMessage(parsed.data.message, image !== null);
   if (!validatedMessage.ok) {
     return errorJson(validatedMessage.code, validatedMessage.message, 400);
   }
@@ -126,6 +179,9 @@ export async function POST(request: NextRequest) {
   try {
     storedMessage = await reserveAndSaveMessage({
       message: validatedMessage.message,
+      imageData: image?.data ?? null,
+      imageMime: image?.mime ?? null,
+      imageSize: image?.size ?? null,
       ipHash: identity.ipHash,
       deviceHash: identity.deviceHash,
       sourceKey: identity.sourceKey,
@@ -141,6 +197,8 @@ export async function POST(request: NextRequest) {
   try {
     const telegramStatus = await sendTelegramNotification({
       message: storedMessage.message,
+      imageData: storedMessage.imageData,
+      imageMime: storedMessage.imageMime,
       ip: identity.ip,
       device: storedMessage.device,
       browser: storedMessage.browser,

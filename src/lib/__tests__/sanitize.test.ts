@@ -16,6 +16,10 @@ describe("sanitizeMessage", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("allows an empty caption when an image is present", () => {
+    expect(sanitizeMessage("", true)).toEqual({ ok: true, message: "" });
+  });
+
   it("rejects messages over 1000 symbols", () => {
     const result = sanitizeMessage("я".repeat(1001));
     expect(result.ok).toBe(false);

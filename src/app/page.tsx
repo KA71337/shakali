@@ -4,6 +4,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 
 import { MessageForm } from "@/components/message-form";
+import { PublicChatFeed } from "@/components/public-chat-feed";
 
 export default async function Home() {
   await connection();
@@ -93,6 +94,10 @@ export default async function Home() {
             </span>
           </div>
         </section>
+
+        <div className="hero-enter hero-enter-delay-4 mt-12 w-full max-w-3xl sm:mt-16">
+          <PublicChatFeed />
+        </div>
       </main>
 
       <footer className="mx-auto w-full max-w-6xl px-5 py-6 text-center text-[11px] leading-5 tracking-wide text-slate-600 sm:px-8 sm:text-xs">

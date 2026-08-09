@@ -6,8 +6,10 @@ import {
   CheckCircle2,
   Clock3,
   LoaderCircle,
+  ImagePlus,
   LockKeyhole,
   Send,
+  X,
 } from "lucide-react";
 import {
   type ChangeEvent,
@@ -18,12 +20,17 @@ import {
   useState,
 } from "react";
 
+import { MESSAGE_CREATED_EVENT } from "@/components/public-chat-feed";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 
 const MAX_MESSAGE_LENGTH = 1000;
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 const LOCAL_MESSAGES = {
-  empty: "Напишите сообщение перед отправкой.",
+  empty: "Напишите сообщение или добавьте изображение.",
+  imageTooLarge: "Изображение должно быть не больше 2 МБ.",
+  imageType: "Разрешены только JPEG, PNG, WebP и GIF.",
   tooLong: "Сообщение слишком длинное. Максимум — 1000 символов.",
   tokenLoad:
     "Не удалось загрузить форму. Проверьте соединение и попробуйте снова.",
@@ -179,6 +186,9 @@ export function MessageForm({ nonce }: MessageFormProps) {
   const mountRequestRef = useRef<AbortController | null>(null);
   const submitRequestRef = useRef<AbortController | null>(null);
   const [message, setMessage] = useState("");
+  const [image, setImage] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const [formToken, setFormToken] = useState<string | null>(null);
   const [knownSiteKey, setKnownSiteKey] = useState<string | null>(null);
   const [captchaRequired, setCaptchaRequired] = useState(false);
@@ -230,6 +240,10 @@ export function MessageForm({ nonce }: MessageFormProps) {
       isMountedRef.current = false;
       controller.abort();
       submitRequestRef.current?.abort();
+      setImagePreviewUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
     };
   }, []);
 
@@ -310,6 +324,36 @@ export function MessageForm({ nonce }: MessageFormProps) {
     setMessage(limitUnicodeSymbols(event.target.value));
   };
 
+  const clearImage = () => {
+    setImage(null);
+    setImagePreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
+
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    if (!file) return clearImage();
+    if (file.size > MAX_IMAGE_BYTES) {
+      clearImage();
+      setNotice({ kind: "error", text: LOCAL_MESSAGES.imageTooLarge });
+      return;
+    }
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      clearImage();
+      setNotice({ kind: "error", text: LOCAL_MESSAGES.imageType });
+      return;
+    }
+    setImage(file);
+    setImagePreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return URL.createObjectURL(file);
+    });
+    setNotice(null);
+  };
+
   const handleCaptchaToken = useCallback((token: string | null) => {
     setCaptchaToken(token);
   }, []);
@@ -324,7 +368,7 @@ export function MessageForm({ nonce }: MessageFormProps) {
 
     const trimmedMessage = message.trim();
 
-    if (trimmedMessage.length === 0) {
+    if (trimmedMessage.length === 0 && !image) {
       setNotice({ kind: "error", text: LOCAL_MESSAGES.empty });
       return;
     }
@@ -358,19 +402,17 @@ export function MessageForm({ nonce }: MessageFormProps) {
     let requestErrorMessage: string | null = null;
 
     try {
+      const formData = new FormData();
+      formData.set("message", message);
+      formData.set("formToken", formToken);
+      formData.set("website", "");
+      if (captchaToken) formData.set("turnstileToken", captchaToken);
+      if (image) formData.set("image", image);
       const response = await fetch("/api/messages", {
         method: "POST",
         credentials: "same-origin",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message,
-          formToken,
-          website: "",
-          turnstileToken: captchaToken,
-        }),
+        headers: { Accept: "application/json" },
+        body: formData,
         signal: controller.signal,
       });
       const payload = await readJson(response);
@@ -425,9 +467,11 @@ export function MessageForm({ nonce }: MessageFormProps) {
 
     if (result.ok) {
       setMessage("");
+      clearImage();
       setCaptchaRequired(false);
       applyRetryAfter(result.retryAfter);
       setNotice({ kind: "success", text: LOCAL_MESSAGES.success });
+      window.dispatchEvent(new Event(MESSAGE_CREATED_EVENT));
       return;
     }
 
@@ -450,8 +494,7 @@ export function MessageForm({ nonce }: MessageFormProps) {
     isBusy ||
     !formToken ||
     remainingSeconds > 0 ||
-    messageLength === 0 ||
-    message.trim().length === 0 ||
+    (message.trim().length === 0 && !image) ||
     messageLength > MAX_MESSAGE_LENGTH ||
     (captchaRequired && (!captchaSiteKey || !captchaToken));
 
@@ -508,7 +551,6 @@ export function MessageForm({ nonce }: MessageFormProps) {
             onChange={handleMessageChange}
             placeholder="Введите сообщение..."
             rows={7}
-            required
             autoComplete="off"
             spellCheck
             disabled={isSubmitting}
@@ -532,6 +574,34 @@ export function MessageForm({ nonce }: MessageFormProps) {
               {messageLength} / {MAX_MESSAGE_LENGTH}
             </output>
           </div>
+        </div>
+
+        <div className="mt-3">
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={handleImageChange}
+            disabled={isSubmitting}
+            className="sr-only"
+            id="message-image"
+          />
+          <label
+            htmlFor="message-image"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/[0.08]"
+          >
+            <ImagePlus className="size-4" aria-hidden="true" />
+            Добавить изображение (до 2 МБ)
+          </label>
+          {imagePreviewUrl ? (
+            <div className="relative mt-3 overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imagePreviewUrl} alt="Предпросмотр выбранного изображения" className="max-h-72 w-full rounded-xl object-contain" />
+              <button type="button" onClick={clearImage} className="absolute right-3 top-3 rounded-full bg-black/70 p-2 text-white" aria-label="Удалить изображение">
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <AnimatePresence initial={false} mode="popLayout">
